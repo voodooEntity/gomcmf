@@ -2,6 +2,7 @@ package template
 
 import (
 	"errors"
+	"fmt"
 	"github.com/voodooEntity/gomcmf/src/converter"
 	"github.com/voodooEntity/gomcmf/src/types"
 	"github.com/voodooEntity/gomcmf/src/util"
@@ -216,7 +217,9 @@ func GetUrlSafeName(filename string) string {
 }
 
 func DecodeFileName(fileName string) (string, string, string) {
+	fmt.Printf("filename before split %+v", fileName)
 	parts := strings.Split(fileName, ".")
+	fmt.Printf("filename split %+v", fileName)
 	if 3 != len(parts) {
 		util.Error("Invalid filename provided '" + fileName + "'")
 	}
