@@ -1,0 +1,10 @@
+{
+    "base" : "https://domain.tld/path/",
+    "indexFile" : "index.md",
+    "404File" : "404.md",
+    "mainFile" : "main.html",
+    "pagesPath" : "pages",
+    "resourcesPath" : "resources",
+    "buildPath" : "output",
+    "title" : "your website title"
+}
