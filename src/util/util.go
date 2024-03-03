@@ -83,6 +83,7 @@ func GetSubdirectories(directory string) []string {
 }
 
 func CreateDirIfNotExist(dir string) {
+	fmt.Printf("Directory to create %+v \n", dir)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err := os.MkdirAll(dir, 0755)
 		if err != nil {

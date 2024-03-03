@@ -70,7 +70,7 @@ func (self *Core) BuildProject() {
 	}
 
 	// copy all files in resources recursively
-	util.CreateDirIfNotExist(self.Pwd + outputDirectory + "/" + resourcesDirectory)
+	//util.CreateDirIfNotExist(self.Pwd + outputDirectory + "/" + resourcesDirectory)
 	util.CopyDirectoryRecursive(self.Pwd+resourcesDirectory, self.Pwd+outputDirectory+"/"+resourcesDirectory)
 
 	// render all pages recursive
@@ -138,7 +138,7 @@ func (self *Core) rBuildPageGroups(pageDirectory string, outputDirectory string,
 		for _, subDir := range subDirectories {
 			// exclude the output directory ###
 			if currPath+"/"+subDir != outPath {
-				util.CreateDirIfNotExist(self.Pwd + outPath + "/" + subDir)
+				//util.CreateDirIfNotExist(self.Pwd + outPath + "/" + subDir) ### disabled since it duplicates the root structure , maybe need to enable again - recheck
 				self.rBuildPageGroups(pageDirectory, outputDirectory, currPath+"/"+subDir, pageGroups)
 			}
 		}
