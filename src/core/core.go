@@ -1,14 +1,15 @@
 package core
 
 import (
-	_ "embed"
-	"github.com/voodooEntity/gomcmf/src/config"
-	"github.com/voodooEntity/gomcmf/src/template"
-	"github.com/voodooEntity/gomcmf/src/types"
-	"github.com/voodooEntity/gomcmf/src/util"
-	"strconv"
-	"strings"
-	"time"
+    _ "embed"
+    "github.com/voodooEntity/gomcmf/src/config"
+    "github.com/voodooEntity/gomcmf/src/template"
+    "github.com/voodooEntity/gomcmf/src/types"
+    "github.com/voodooEntity/gomcmf/src/util"
+    "path/filepath"
+    "strconv"
+    "strings"
+    "time"
 )
 
 //go:embed embed/index.md
@@ -62,19 +63,27 @@ func (self *Core) BuildProject() {
 	util.Print("- Main template file: '" + config.GetValue("mainFile") + "'")
 	util.Print("- Resources directory: '" + config.GetValue("resourcesPath") + "'")
 
-	// read main template
-	mainTemplate := util.ReadFile(self.Pwd + config.GetValue("mainFile"))
+ // read main template
+ mainTemplate := util.ReadFile(filepath.Join(self.Pwd, config.GetValue("mainFile")))
 	mainTemplateReplacements, err := template.GetReplacementMarkers(mainTemplate)
 	if nil != err {
 		util.Error("Getting replacements for main template failed with error '" + err.Error() + "'")
 	}
 
-	// copy all files in resources recursively
-	//util.CreateDirIfNotExist(self.Pwd + outputDirectory + "/" + resourcesDirectory)
-	util.CopyDirectoryRecursive(self.Pwd+resourcesDirectory, self.Pwd+outputDirectory+"/"+resourcesDirectory)
+ // copy all files in resources recursively
+ //util.CreateDirIfNotExist(self.Pwd + outputDirectory + "/" + resourcesDirectory)
+ util.CopyDirectoryRecursive(
+     filepath.Join(self.Pwd, resourcesDirectory),
+     filepath.Join(self.Pwd, outputDirectory, resourcesDirectory),
+ )
 
-	// render all pages recursive
-	self.rBuildPageGroups(self.Pwd+pagesDirectory, self.Pwd+outputDirectory, "", pageGroups)
+ // render all pages recursive
+ self.rBuildPageGroups(
+     filepath.Join(self.Pwd, pagesDirectory),
+     filepath.Join(self.Pwd, outputDirectory),
+     "",
+     pageGroups,
+ )
 
 	// for each pagegroup
 	for path, group := range pageGroups {
@@ -83,21 +92,21 @@ func (self *Core) BuildProject() {
 			// exclude link type since it doesnt need to be rendered
 			if "link" != page.Type {
 				pageContent := template.RenderPage(page, mainTemplate, mainTemplateReplacements, variables, pageGroups, group.Ident)
-				util.CreateDirIfNotExist(self.Pwd + outputDirectory + path)
-				filePath := strings.TrimPrefix(path, "/")
-				if "" != filePath {
-					filePath = outputDirectory + "/" + filePath
-				} else {
-					filePath = outputDirectory
-				}
-				util.WriteFile(self.Pwd+filePath, strings.TrimPrefix(page.UrlName, "/")+".html", pageContent, true)
+    // Create directory for the page output
+    rel := strings.TrimPrefix(path, "/")
+    targetDir := filepath.Join(self.Pwd, outputDirectory)
+    if rel != "" {
+        targetDir = filepath.Join(targetDir, rel)
+    }
+    util.CreateDirIfNotExist(targetDir)
+    util.WriteFile(targetDir, strings.TrimPrefix(page.UrlName, "/")+".html", pageContent, true)
 			}
 		}
 	}
 
 	// finally we render index and 404 page
 	// read&render index template
-	indexFile := util.ReadFile(config.GetValue("indexFile"))
+ indexFile := util.ReadFile(filepath.Join(self.Pwd, config.GetValue("indexFile")))
 	indexPage := types.Page{
 		Type:     "md",
 		Filename: config.GetValue("indexFile"),
@@ -107,10 +116,10 @@ func (self *Core) BuildProject() {
 		Content:  indexFile,
 	}
 	indexPageContent := template.RenderPage(indexPage, mainTemplate, mainTemplateReplacements, variables, pageGroups, "")
-	util.WriteFile(self.Pwd+outputDirectory, indexPage.UrlName+".html", indexPageContent, true)
+ util.WriteFile(filepath.Join(self.Pwd, outputDirectory), indexPage.UrlName+".html", indexPageContent, true)
 
 	// read&render 404 template
-	notFoundFile := util.ReadFile(config.GetValue("404File"))
+ notFoundFile := util.ReadFile(filepath.Join(self.Pwd, config.GetValue("404File")))
 	notFoundPage := types.Page{
 		Type:     "md",
 		Filename: config.GetValue("404File"),
@@ -120,36 +129,42 @@ func (self *Core) BuildProject() {
 		Content:  notFoundFile,
 	}
 	notFoundPageContent := template.RenderPage(notFoundPage, mainTemplate, mainTemplateReplacements, variables, pageGroups, "")
-	util.WriteFile(self.Pwd+outputDirectory, notFoundPage.UrlName+".html", notFoundPageContent, true)
+ util.WriteFile(filepath.Join(self.Pwd, outputDirectory), notFoundPage.UrlName+".html", notFoundPageContent, true)
 
 	elapsed := time.Since(startTime)
 	util.Print("> Builded project in " + strconv.FormatInt(elapsed.Milliseconds(), 10) + " ms")
 }
 
 func (self *Core) rBuildPageGroups(pageDirectory string, outputDirectory string, currPath string, pageGroups map[string]types.Pagegroup) {
-	inPath := pageDirectory + currPath
-	outPath := outputDirectory + currPath
-	pages := template.GetAllTemplateFiles(inPath)
-	files := template.GetNonTemplateFiles(inPath)
-	subDirectories := util.GetSubdirectories(inPath)
+    // Build paths in a platform-safe way while preserving original semantics
+    rel := strings.TrimPrefix(currPath, "/")
+    inPath := filepath.Join(pageDirectory, rel)
+    outPath := filepath.Join(outputDirectory, rel)
+    pages := template.GetAllTemplateFiles(inPath)
+    files := template.GetNonTemplateFiles(inPath)
+    subDirectories := util.GetSubdirectories(inPath)
 
 	// create all directories
 	if 0 < len(subDirectories) {
 		for _, subDir := range subDirectories {
 			// exclude the output directory ###
-			if currPath+"/"+subDir != outPath {
-				//util.CreateDirIfNotExist(self.Pwd + outPath + "/" + subDir) ### disabled since it duplicates the root structure , maybe need to enable again - recheck
-				self.rBuildPageGroups(pageDirectory, outputDirectory, currPath+"/"+subDir, pageGroups)
-			}
-		}
-	}
+            if currPath+"/"+subDir != outPath {
+                //util.CreateDirIfNotExist(self.Pwd + outPath + "/" + subDir) ### disabled since it duplicates the root structure , maybe need to enable again - recheck
+                self.rBuildPageGroups(pageDirectory, outputDirectory, currPath+"/"+subDir, pageGroups)
+            }
+        }
+    }
 
 	// copy all non-template files
 	if 0 < len(files) {
-		for _, file := range files {
-			util.CopyFile(self.Pwd+inPath+"/"+file, self.Pwd+outPath+"/"+file)
-		}
-	}
+        for _, file := range files {
+            src := filepath.Join(self.Pwd, inPath, file)
+            dst := filepath.Join(self.Pwd, outPath, file)
+            // ensure destination directory exists
+            util.CreateDirIfNotExist(filepath.Dir(dst))
+            util.CopyFile(src, dst)
+        }
+    }
 
 	if 0 < len(pages) {
 		pageGroup := types.Pagegroup{}

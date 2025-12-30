@@ -1,10 +1,9 @@
 package config
 
 import (
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"os"
+    "encoding/json"
+    "fmt"
+    "os"
 )
 
 var Data = make(map[string]string)
@@ -29,13 +28,13 @@ func SetValue(key string, value string) {
 }
 
 func handleConfigFile() {
-	// first we read the json data
-	data, err := ioutil.ReadFile("config.json")
-	if nil != err {
-		fmt.Print("> Config file could not be found or is not readable")
-		os.Exit(0)
-		return
-	}
+    // first we read the json data
+    data, err := os.ReadFile("config.json")
+    if nil != err {
+        fmt.Print("> Config file could not be found or is not readable")
+        os.Exit(0)
+        return
+    }
 	// now we parse the config contents
 	// lets see if the body json is valid tho
 	Conf := make(map[string]string)

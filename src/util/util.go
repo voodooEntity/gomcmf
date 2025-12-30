@@ -1,14 +1,13 @@
 package util
 
 import (
-	"fmt"
-	"io"
-	"io/ioutil"
-	"log"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
+    "fmt"
+    "io"
+    "log"
+    "os"
+    "path/filepath"
+    "strconv"
+    "strings"
 )
 
 var loggerOut = log.New(os.Stdout, "", 0)
@@ -21,15 +20,16 @@ func Explode(delimiter, text string) []string {
 }
 
 func WriteFile(path string, file string, content string, overwrite bool) {
-	if !overwrite {
-		if _, err := os.Stat(path + file); err == nil {
-			Error("File '" + file + "' at path '" + path + "' already exists. Exiting")
-		}
-	}
-	err := os.WriteFile(path+"/"+file, []byte(content), 0644)
-	if nil != err {
-		Error(err.Error())
-	}
+    fullPath := filepath.Join(path, file)
+    if !overwrite {
+        if _, err := os.Stat(fullPath); err == nil {
+            Error("File '" + file + "' at path '" + path + "' already exists. Exiting")
+        }
+    }
+    err := os.WriteFile(fullPath, []byte(content), 0644)
+    if nil != err {
+        Error(err.Error())
+    }
 }
 
 func Print(text string) {
@@ -68,18 +68,18 @@ func StringInArray(haystack []string, needle string) bool {
 }
 
 func GetSubdirectories(directory string) []string {
-	var directories []string
-	allFiles, err := ioutil.ReadDir(directory)
-	if err != nil {
-		Error(err.Error())
-	}
-	for _, file := range allFiles {
-		if !file.IsDir() {
-			continue
-		}
-		directories = append(directories, file.Name())
-	}
-	return directories
+    var directories []string
+    allFiles, err := os.ReadDir(directory)
+    if err != nil {
+        Error(err.Error())
+    }
+    for _, file := range allFiles {
+        if !file.IsDir() {
+            continue
+        }
+        directories = append(directories, file.Name())
+    }
+    return directories
 }
 
 func CreateDirIfNotExist(dir string) {

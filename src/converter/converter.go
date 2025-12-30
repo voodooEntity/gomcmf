@@ -233,15 +233,65 @@ func (self *Content) handleLinks() {
 }
 
 func (self *Content) handleBolds() {
-	tmp := regexp.MustCompile(boldRxp1)
-	self.State.CurrentLineString = tmp.ReplaceAllString(self.State.CurrentLineString, "<b>$1</b>")
-	tmp = regexp.MustCompile(boldRxp2)
-	self.State.CurrentLineString = tmp.ReplaceAllString(self.State.CurrentLineString, "<b>$1</b>")
+    // Apply bold formatting only outside of HTML tags to avoid
+    // corrupting attributes (e.g., underscores in href/src).
+    rx1 := regexp.MustCompile(boldRxp1)
+    rx2 := regexp.MustCompile(boldRxp2)
+    self.State.CurrentLineString = applyOutsideTags(self.State.CurrentLineString, func(s string) string {
+        s = rx1.ReplaceAllString(s, "<b>$1</b>")
+        s = rx2.ReplaceAllString(s, "<b>$1</b>")
+        return s
+    })
 }
 
 func (self *Content) handleItalics() {
-	tmp := regexp.MustCompile(italicRxp1)
-	self.State.CurrentLineString = tmp.ReplaceAllString(self.State.CurrentLineString, "<i>$1</i>")
-	tmp = regexp.MustCompile(italicRxp2)
-	self.State.CurrentLineString = tmp.ReplaceAllString(self.State.CurrentLineString, "<i>$1</i>")
+    // Apply italic formatting only outside of HTML tags to avoid
+    // corrupting attributes (e.g., underscores in href/src).
+    rx1 := regexp.MustCompile(italicRxp1)
+    rx2 := regexp.MustCompile(italicRxp2)
+    self.State.CurrentLineString = applyOutsideTags(self.State.CurrentLineString, func(s string) string {
+        s = rx1.ReplaceAllString(s, "<i>$1</i>")
+        s = rx2.ReplaceAllString(s, "<i>$1</i>")
+        return s
+    })
+}
+
+// applyOutsideTags applies a transformation function only to the portions of
+// the input string that are outside HTML tags (i.e., not between '<' and '>').
+// This prevents inline markdown formatting from altering HTML attributes or
+// tag content introduced earlier in the pipeline (like links/images).
+func applyOutsideTags(s string, transform func(string) string) string {
+    var out strings.Builder
+    var seg strings.Builder
+    inTag := false
+
+    for _, r := range s {
+        if r == '<' {
+            // flush preceding text segment with transform
+            if seg.Len() > 0 {
+                out.WriteString(transform(seg.String()))
+                seg.Reset()
+            }
+            inTag = true
+            out.WriteRune(r)
+            continue
+        }
+        if r == '>' {
+            out.WriteRune(r)
+            inTag = false
+            continue
+        }
+        if inTag {
+            out.WriteRune(r)
+        } else {
+            seg.WriteRune(r)
+        }
+    }
+
+    // flush any remaining text segment
+    if seg.Len() > 0 {
+        out.WriteString(transform(seg.String()))
+    }
+
+    return out.String()
 }

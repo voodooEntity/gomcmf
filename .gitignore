@@ -2,3 +2,4 @@
 *.exe
 *.md
 .idea
+cmd/cli/gomcmf
