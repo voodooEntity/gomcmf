@@ -1,17 +1,19 @@
 package converter
 
 import (
-	"github.com/voodooEntity/gomcmf/src/util"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/voodooEntity/gomcmf/src/util"
 )
 
 const headingsRxp = `(#+)\s?(.+)`
 const imageRxp1 = `!\[([^\]]*)\]\(([^\]]*)\s"(.*)"\)`
 const imageRxp2 = `!\[([^\]]*)\]\(([^\]]*)\)`
-const linkRxp1 = `\[([^\]]+)\]\(([^\]]*)\s"(.*)"\)`
-const linkRxp2 = `\[([^\]]+)\]\(([^\]]*)\)`
+const videoRxp = `!?\[video\]\((.+\.mp4)\)`
+const linkRxp1 = `\[([^\]]+)\]\(([^\]]*)\s"(.*)"(?:\s(_blank))?\)`
+const linkRxp2 = `\[([^\]]+)\]\(([^\]\s]*)(?:\s(_blank))?\)`
 const boldRxp1 = `\*\*(.+?)\*\*`
 const boldRxp2 = `__(.+?)__`
 const italicRxp1 = `\*(.+?)\*`
@@ -173,10 +175,16 @@ func (self *Content) handleHeading() bool {
 }
 
 func (self *Content) handleSubStringElements() {
+	self.handleVideos()
 	self.handleImages()
 	self.handleLinks()
 	self.handleBolds()
 	self.handleItalics()
+}
+
+func (self *Content) handleVideos() {
+	tmp := regexp.MustCompile(videoRxp)
+	self.State.CurrentLineString = tmp.ReplaceAllString(self.State.CurrentLineString, "<video width='100%' height='auto' controls><source src='$1' type='video/mp4'>Your browser does not support the video tag.</video>")
 }
 
 func (self *Content) handleImages() {
@@ -227,33 +235,53 @@ func (self *Content) handleBlockQuote() bool {
 
 func (self *Content) handleLinks() {
 	tmp := regexp.MustCompile(linkRxp1)
-	self.State.CurrentLineString = tmp.ReplaceAllString(self.State.CurrentLineString, "<a href='$2' title='$3'>$1</a>")
+	self.State.CurrentLineString = tmp.ReplaceAllStringFunc(self.State.CurrentLineString, func(match string) string {
+		submatch := tmp.FindStringSubmatch(match)
+		text := submatch[1]
+		url := submatch[2]
+		title := submatch[3]
+		target := ""
+		if len(submatch) > 4 && submatch[4] == "_blank" {
+			target = " target='_blank'"
+		}
+		return "<a href='" + url + "' title='" + title + "'" + target + ">" + text + "</a>"
+	})
+
 	tmp = regexp.MustCompile(linkRxp2)
-	self.State.CurrentLineString = tmp.ReplaceAllString(self.State.CurrentLineString, "<a href='$2'>$1</a>")
+	self.State.CurrentLineString = tmp.ReplaceAllStringFunc(self.State.CurrentLineString, func(match string) string {
+		submatch := tmp.FindStringSubmatch(match)
+		text := submatch[1]
+		url := submatch[2]
+		target := ""
+		if len(submatch) > 3 && submatch[3] == "_blank" {
+			target = " target='_blank'"
+		}
+		return "<a href='" + url + "'" + target + ">" + text + "</a>"
+	})
 }
 
 func (self *Content) handleBolds() {
-    // Apply bold formatting only outside of HTML tags to avoid
-    // corrupting attributes (e.g., underscores in href/src).
-    rx1 := regexp.MustCompile(boldRxp1)
-    rx2 := regexp.MustCompile(boldRxp2)
-    self.State.CurrentLineString = applyOutsideTags(self.State.CurrentLineString, func(s string) string {
-        s = rx1.ReplaceAllString(s, "<b>$1</b>")
-        s = rx2.ReplaceAllString(s, "<b>$1</b>")
-        return s
-    })
+	// Apply bold formatting only outside of HTML tags to avoid
+	// corrupting attributes (e.g., underscores in href/src).
+	rx1 := regexp.MustCompile(boldRxp1)
+	rx2 := regexp.MustCompile(boldRxp2)
+	self.State.CurrentLineString = applyOutsideTags(self.State.CurrentLineString, func(s string) string {
+		s = rx1.ReplaceAllString(s, "<b>$1</b>")
+		s = rx2.ReplaceAllString(s, "<b>$1</b>")
+		return s
+	})
 }
 
 func (self *Content) handleItalics() {
-    // Apply italic formatting only outside of HTML tags to avoid
-    // corrupting attributes (e.g., underscores in href/src).
-    rx1 := regexp.MustCompile(italicRxp1)
-    rx2 := regexp.MustCompile(italicRxp2)
-    self.State.CurrentLineString = applyOutsideTags(self.State.CurrentLineString, func(s string) string {
-        s = rx1.ReplaceAllString(s, "<i>$1</i>")
-        s = rx2.ReplaceAllString(s, "<i>$1</i>")
-        return s
-    })
+	// Apply italic formatting only outside of HTML tags to avoid
+	// corrupting attributes (e.g., underscores in href/src).
+	rx1 := regexp.MustCompile(italicRxp1)
+	rx2 := regexp.MustCompile(italicRxp2)
+	self.State.CurrentLineString = applyOutsideTags(self.State.CurrentLineString, func(s string) string {
+		s = rx1.ReplaceAllString(s, "<i>$1</i>")
+		s = rx2.ReplaceAllString(s, "<i>$1</i>")
+		return s
+	})
 }
 
 // applyOutsideTags applies a transformation function only to the portions of
@@ -261,37 +289,37 @@ func (self *Content) handleItalics() {
 // This prevents inline markdown formatting from altering HTML attributes or
 // tag content introduced earlier in the pipeline (like links/images).
 func applyOutsideTags(s string, transform func(string) string) string {
-    var out strings.Builder
-    var seg strings.Builder
-    inTag := false
+	var out strings.Builder
+	var seg strings.Builder
+	inTag := false
 
-    for _, r := range s {
-        if r == '<' {
-            // flush preceding text segment with transform
-            if seg.Len() > 0 {
-                out.WriteString(transform(seg.String()))
-                seg.Reset()
-            }
-            inTag = true
-            out.WriteRune(r)
-            continue
-        }
-        if r == '>' {
-            out.WriteRune(r)
-            inTag = false
-            continue
-        }
-        if inTag {
-            out.WriteRune(r)
-        } else {
-            seg.WriteRune(r)
-        }
-    }
+	for _, r := range s {
+		if r == '<' {
+			// flush preceding text segment with transform
+			if seg.Len() > 0 {
+				out.WriteString(transform(seg.String()))
+				seg.Reset()
+			}
+			inTag = true
+			out.WriteRune(r)
+			continue
+		}
+		if r == '>' {
+			out.WriteRune(r)
+			inTag = false
+			continue
+		}
+		if inTag {
+			out.WriteRune(r)
+		} else {
+			seg.WriteRune(r)
+		}
+	}
 
-    // flush any remaining text segment
-    if seg.Len() > 0 {
-        out.WriteString(transform(seg.String()))
-    }
+	// flush any remaining text segment
+	if seg.Len() > 0 {
+		out.WriteString(transform(seg.String()))
+	}
 
-    return out.String()
+	return out.String()
 }
