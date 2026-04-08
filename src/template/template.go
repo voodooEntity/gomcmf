@@ -72,13 +72,21 @@ func GetAllTemplateFiles(directory string) []types.Page {
 		if file.IsDir() || !hasAllowedExt(file.Name(), GetAllowedTemplateExt()) {
 			continue
 		}
-		pageFiles = append(pageFiles, GetPageByPathAndFilename(directory, file.Name()))
+		page, err := GetPageByPathAndFilename(directory, file.Name())
+		if err != nil {
+			util.Print("> Warning: Skipping invalid template file '" + file.Name() + "': " + err.Error())
+			continue
+		}
+		pageFiles = append(pageFiles, page)
 	}
 	return pageFiles
 }
 
-func GetPageByPathAndFilename(path string, filename string) types.Page {
-	_, name, ext := DecodeFileName(filename)
+func GetPageByPathAndFilename(path string, filename string) (types.Page, error) {
+	_, name, ext, err := DecodeFileName(filename)
+	if err != nil {
+		return types.Page{}, err
+	}
 	urlSafeName := GetUrlSafeName(filename)
 	fullPath := path + "/" + filename
 	page := types.Page{
@@ -90,7 +98,7 @@ func GetPageByPathAndFilename(path string, filename string) types.Page {
 		Sequence: GetSequenceFromFilename(filename),
 		Content:  util.ReadFile(fullPath),
 	}
-	return page
+	return page, nil
 }
 
 func RenderPage(
@@ -200,7 +208,10 @@ func buildInternalUrl(ident string, page types.Page) string {
 }
 
 func GetSequenceFromFilename(filename string) int {
-	strSequence, _, _ := DecodeFileName(filename)
+	strSequence, _, _, err := DecodeFileName(filename)
+	if err != nil {
+		return -1
+	}
 	seq, err := strconv.Atoi(strSequence)
 	if err == nil {
 		return seq
@@ -209,22 +220,21 @@ func GetSequenceFromFilename(filename string) int {
 }
 
 func GetUrlSafeName(filename string) string {
-	_, name, _ := DecodeFileName(filename)
+	_, name, _, err := DecodeFileName(filename)
+	if err != nil {
+		return strings.ReplaceAll(filename, ".", "_")
+	}
 	pattern := `[^a-zA-Z0-9]+`
 	regex := regexp.MustCompile(pattern)
 	return regex.ReplaceAllString(name, "_")
 }
 
-func DecodeFileName(fileName string) (string, string, string) {
+func DecodeFileName(fileName string) (string, string, string, error) {
 	parts := strings.Split(fileName, ".")
 	if 3 != len(parts) {
-		util.Error("Invalid filename provided '" + fileName + "'")
+		return "", "", "", errors.New("invalid filename format: " + fileName)
 	}
-	//decodedString, err := base64.URLEncoding.DecodeString(parts[1])
-	//if nil != err {
-	//	util.Error("Could not decode pagename '" + parts[1] + "'")
-	//}
-	return parts[0], parts[1], parts[2]
+	return parts[0], parts[1], parts[2], nil
 }
 
 func hasAllowedExt(filename string, allowedExts []string) bool {
